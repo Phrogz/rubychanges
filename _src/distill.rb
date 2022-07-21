@@ -1,9 +1,9 @@
 DBFILE = 'database.yaml'
-BASE_RELEASE = 1.9
+BASE_RELEASE = 2.7
 
 def run!
 	changes = changes_from_db
-	known_releases = changes.map(&:release).uniq.map(&:to_f).sort.unshift(1.9)
+	known_releases = changes.map(&:release).uniq.map(&:to_f).sort.unshift(BASE_RELEASE)
 	options = fetch_options(known_releases)
 
 	changes = changes.filter{ |c| c.release > options.from && c.release <= options.to && c.level >= options.level }
@@ -114,7 +114,7 @@ def create_report(changes, known_releases, options)
 					td { vertical-align:top; color:#333 }
 					code { color:#369 }
 
-					.addition::before, .removal::before, .change::before, .promotion::before { font-family:monospace; vertical-align:middle; line-height:1em; display:inline-block; padding-right:0.1em; font-size:1.6em }
+					.addition::before, .removal::before, .change::before, .promotion::before, .deprecation::before { font-family:monospace; vertical-align:middle; line-height:1em; display:inline-block; padding-right:0.1em; font-size:1.6em }
 					.addition::before { content:'⊕'; color:#060 }
 					.promotion::before { content:'✪'; color:#0c0 }
 					.deprecation::before { content:'⎊'; color:#900 }

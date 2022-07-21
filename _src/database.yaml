@@ -1738,5 +1738,424 @@
         #=> _1 is reserved for numbered parameter (SyntaxError)
         ```
 
+    - title: Type declarations in separate files
+      kind: addition
+      importance: high
+      highlight: true
+      summary: Type declarations belong in `*.rbs` files, with separate tools for validating.
+      reason: |
+        The discussion of possible solutions for _static_ or _gradual_ typing and possible syntax of type declarations in Ruby code had been open for years. At 3.0, Ruby's core team made their mind towards **type declaration in separate files** and **separate tools to check types**. So, as of 3.0:
+
+        * **type declarations** for Ruby code should be defined **in separate files** with extension `*.rbs`
+        * **the syntax for type declarations** is like following (small example):
+          ```ruby
+          class Dog
+            attr_reader name: String
+
+            def initialize: (name: String) -> void
+
+            def bark: (at: Person | Dog | nil) -> String
+          end
+          ```
+        * **type declaration for the core classes and the standard library** is shipped with the language;
+        * **[rbs](https://github.com/ruby/rbs) library is shipped with Ruby**, providing tools for checking actual types in code against the declarations; and for auto-detecting (to some extent) the actual types of yet-untyped code;
+        * **[TypeProf](https://github.com/ruby/typeprof)** is another tool ("Type Profiler") shipping with Ruby 3.0 as a bundled gem, allowing **to auto-detect the actual types** of the Ruby by "abstract interpretation" (running through code without actually executing it);
+
+        For a deeper understanding, please check those tools' documentation; also [this article](https://evilmartians.com/chronicles/climbing-steep-hills-or-adopting-ruby-types) by Vladimir Dementiev of Evil Martians takes a detailed look into tools and concepts.
+
   Core Classes and Modules:
-    - title: TODO
+    - title: "`Object#clone(freeze:true)`"
+      kind: addition
+      importance: low
+      summary: |
+        `freeze:` argument now works both ways (previously only `freeze: false` had an effect).
+
+      reason: |
+        Mostly for consistency. `Object#clone(freeze: false)` was [introduced in Ruby 2.4](2.4.html#objectclonefreeze-false) as an _only_ way of producing unfrozen object; `clone(freeze: true)` is basically an equivalent of `clone` + `freeze`.
+      feature: 16175
+      docs: https://docs.ruby-lang.org/en/3.0.0/Kernel.html#method-i-clone
+      code: |
+        ```ruby
+        o = Object.new
+        o.clone(freeze: true).frozen?
+        # => false in Ruby 2.7
+        # => true in Ruby 3.0
+
+        o = Object.new.freeze
+        o.clone(freeze: false).frozen?
+        # => false in Ruby 2.7 and 3.0
+        ```
+      class: Kernel
+
+    - title: "`Object#clone` passes `freeze:` argument to `#initialize_clone`"
+      kind: addition
+      importance: low
+      summary: Specialized constructor `#initialize_clone`, which is called when object is cloned, now receives `freeze:` argument if it was passed to `#clone`.
+      reason: For composite objects, it is hard to address freezing/unfreezing of nested data in `#initialize_clone` without this argument.
+      bug: 14266
+      docs: https://docs.ruby-lang.org/en/3.0.0/Kernel.html#method-i-clone)
+      code: |
+        ```ruby
+        require 'set'
+        set = Set[1, 2, 3].freeze
+        set.frozen? # => true
+        set.instance_variable_get('@hash').frozen? # => true, as expected
+
+        unfrozen = set.clone(freeze: false)
+        unfrozen.frozen? # => false, as expected
+        unfrozen.instance_variable_get('@hash').frozen?
+        # 2.7: => true, still
+        # 3.0: => false, as it should be -- becase Set have redefined #initialize_clone
+
+        unfrozen << 4
+        # 2.7: FrozenError (can't modify frozen Hash: {1=>true, 2=>true, 3=>true})
+        # 3.0: => #<Set: {1, 2, 3, 4}>
+        ```
+      notes: A lot of attention to proper object freezing in Ruby 3.0 is due to the introduction of Ractors, which made the important distinction if the object is truly frozen (and therefore safe to share between parallel ractors).
+
+    - title: "`Kernel#eval` changed processing of `__FILE__` and `__LINE__`"
+      kind: change
+      importance: low
+      summary: Now, when the second argument (`binding`) is passed to `eval`, `__FILE__` in evaluated code is `(eval)`, and `__LINE__` starts from `1` (just like without `binding`). Before 2.7 it was evaluated in context of `binding` (e.g. returned file from where `binding` came from), on 2.7 the warning was printed; now the behavior is considered final.
+      reason: Binding might be passed to `eval` in order to provide the access to some context necessary for evaluation (this technique, for example, frequently used in templating engines); but it had an unintended consequence of making `__FILE__` and `__LINE__` to point not to actually evaluated code, which can be misleading, for example, on errors processing.
+      bug: 4352
+      docs:
+        - https://docs.ruby-lang.org/en/3.0.0/Kernel.html#method-i-eval
+        - https://docs.ruby-lang.org/en/3.0.0/Binding.html#method-i-eval
+      code: |
+        ```ruby
+        # file a.rb
+        class A
+          def get_binding
+            binding
+          end
+        end
+
+        # file b.rb
+        require_relative 'a'
+        eval('p [__FILE__, __LINE__]')                    # without binding
+        eval('p [__FILE__, __LINE__]', A.new.get_binding) # with binding from another file
+        # Ruby 2.6:
+        #  ["(eval)", 1]
+        #  ["a.rb", 3]
+
+        # Ruby 2.7:
+        #  ["(eval)", 1]
+        #  ["a.rb", 3]
+        #   warning: __FILE__ in eval may not return location in binding; use Binding#source_location instead
+        #   warning: __LINE__ in eval may not return location in binding; use Binding#source_location instead
+
+        # Ruby 3.0:
+        #  ["(eval)", 1]
+        #  ["(eval)", 1]
+        ```
+      class: Kernel
+
+    - title: "`Regexp` and `Range` objects are frozen"
+      kind: change
+      importance: low
+      reason: |
+        The change is related to Ractor introduction (see below): it makes a difference whether an object is frozen when sharing it between ractors. As both ranges and regexps have immutable core data, it was considered that making them frozen is the right thing to do.
+      feature: 8948
+      code: |
+        ```ruby
+        /foo/.frozen?   # => true
+        (42...).frozen? # => true
+
+        # Regexps are frozen even when constructed with dynamic interpolation
+        /.#{rand(10)}/.frozen? # => true
+
+        # ...but not when they are constructed with the constructor
+        Regexp.new('foo').frozen?  # => false
+
+        # ...but ranges are always frozen
+        Range.new('a', 'b').frozen? # => true
+
+        # Regularly, as the data can't be changed anyways, the frozenness wouldn't affect your code.
+        # It might, though, if the code does something smart like:
+        regexp = /^\w+\s*\w*$/
+        regexp.instance_variable_set('@context', :name)
+        # 2.7: ok
+        # 3.0: FrozenError (can't modify frozen Regexp: /^\w+\s*\w*$/)
+
+        # ...or
+        RANGE = Time.new(2020, 3, 1)..Time.new(2020, 9, 1)
+        def RANGE.to_s
+          self.begin.strftime('%Y, %b %d') + ' - ' + self.end.strftime('%b %d')
+        end
+        # 2.7: OK
+        # 3.0: FrozenError (can't modify frozen object: 2020-03-01 00:00:00 +0200..2020-09-01 00:00:00 +0300)
+
+        # Note also, that range freezing is not "deep":
+        string_range = 'a'..'z'
+        string_range.end.upcase!
+        string_range
+        # => 'a'..'Z'
+
+        # clone(freeze: false) still allows to unfreeze both:
+        unfrozen = RANGE.clone(freeze: false)
+        def unfrozen.to_s
+          self.begin.strftime('%Y, %b %d') + ' - ' + self.end.strftime('%b %d')
+        end
+        puts unfrozen
+        # Prints: "2020, Mar 01 - Sep 01"
+        ```
+      notes: |
+        The fact that dynamically created ranges are frozen and regexps are not, is explained this way: Ideally, both should be frozen, yet there are some gems (and some core Ruby tests) that use dynamic singleton method definitions on regexps, and it was decided that incompatibility should be avoided.
+
+    - title: "`#include` and `#prepend` now affect modules including the receiver"
+      kind: change
+      importance: medium
+      category: Module
+      summary: If class `C` includes module `M`, and after that we did `M.include M1`, before Ruby 3.0, `M1` would not have been included into `C`; and now it is.
+      reason: The behavior was long-standing and led to a lot of confusion (especially considering that including something in the class _did_ affected its descendants).
+      feature: 9573
+      code: |
+        ```ruby
+        module MyEnumerableExtension
+          def each2(&block)
+            each_slice(2, &block)
+          end
+        end
+
+        Enumerable.include MyEnumerableExtension
+
+        (1..8).each2.to_a
+        # Ruby 2.7: NoMethodError (undefined method `each2' for 1..8:Range) -- even though Range includes Enumerable
+        # Ruby 3.0: [[1, 2], [3, 4], [5, 6], [7, 8]]
+        ```
+      followup: In Ruby 3.1, `#prepend` behavior was adjusted further to be more predictable.
+      class: Module
+
+    - title: "Improved method visibility declaration"
+      kind: change
+      importance: medium
+      category: Module
+      summary: |
+        * `private attr_reader :a, :b, :c` and `private alias_method :foo, :bar` now work exactly like one might expect.
+        * `Module#public`, `#private`, `#protected` can now accept an array. While it is not necessary when a literal list of symbols is passed, it is more convenient when the method names are calculated by some DSL method.
+        * `Module#attr_accessor`, `#attr_reader`, `#attr_writer` now return arrays of symbols with new methods names defined.
+        * `Module#alias_method` now returns a name of the method defined.
+      docs:
+        - https://docs.ruby-lang.org/en/3.0.0/Module.html#method-i-private
+        - https://docs.ruby-lang.org/en/3.0.0/Module.html#method-i-public
+        - https://docs.ruby-lang.org/en/3.0.0/Module.html#method-i-protected
+        - https://docs.ruby-lang.org/en/3.0.0/Module.html#method-i-public_class_emethod
+        - https://docs.ruby-lang.org/en/3.0.0/Module.html#method-i-private_class_method
+        - https://docs.ruby-lang.org/en/3.0.0/Module.html#method-i-attr
+        - https://docs.ruby-lang.org/en/3.0.0/Module.html#method-i-attr_reader
+        - https://docs.ruby-lang.org/en/3.0.0/Module.html#method-i-attr_writer
+        - https://docs.ruby-lang.org/en/3.0.0/Module.html#method-i-attr_accessor
+        - https://docs.ruby-lang.org/en/3.0.0/Module.html#method-i-alias_method
+      feature: 17314
+      code: |
+        ```ruby
+        class A
+          def foo
+          end
+
+          def bar
+          end
+
+          # new behavior of private
+          private %i[foo bar]
+          # Ruby 2.7: [:foo, :bar] is not a symbol nor a string
+          # Ruby 3.0: works
+
+          # old behavior still works
+          private :foo, :bar
+
+          # new behavior of attr_XX
+          p(attr_reader :a, :b)
+          # Ruby 2.7: => nil
+          # Ruby 3.0: => [:a, :b]
+
+          # new behavior of alias_method
+          p(alias_method :baz, :foo)
+          # Ruby 2.7: => A
+          # Ruby 3.0: => :bar
+
+          # The consequence is this is now possible:
+          private attr_reader :first, :second
+          # attr_reader() returns array [:first, :second], which is then passed to private()
+
+          private alias_method :third, :second
+          # alias_method() returns :third, which is then passed to private()
+        end
+        ```
+      notes: |
+        Unlike `alias_method`, `alias` is not a method but a language construct, and its behavior haven't changed (and it can't be used in an expression context):
+
+        ```ruby
+        class A
+          def foo
+          end
+
+          private alias bar foo
+          #       ^ syntax error, unexpected `alias'
+        end
+        ```
+      followup: In Ruby 3.1, `#private`, `#protected`, `#public`, and `#module_function` return their arguments for better macros chainability.
+      class: Module
+
+    - title: "`Warning#warn` gains `category:` argument."
+      kind: addition
+      importance: low
+      summary: Ruby 2.7 introduced warning categories, and allowed to selectively suppress them with `Warning[]=` method. Since Ruby 3.0, user code also may specify categories for its warnings, and intercept them by redefining `Warning.warn`.
+      feature: 17122
+      docs:
+        - https://docs.ruby-lang.org/en/3.0.0/Warning.html#method-i-warn
+        - https://docs.ruby-lang.org/en/3.0.0/Kernel.html#method-i-warn
+      code: |
+        ```ruby
+        # Using from user code:
+        Warning[:deprecated] = true
+        warn('my warning', category: :deprecated)
+        # "my warning"
+        Warning[:deprecated] = false
+        warn('my warning', category: :deprecated)
+        # ...nothing, obeys "don't show deprecated" setting
+
+        # If the category is not supported:
+        warn('my warning', category: :custom)
+        # ArgumentError (invalid warning category used: custom)
+
+        # Intercepting:
+        module Warning
+          def self.warn(msg, category: nil)
+            puts "Received message #{msg.strip} with category=#{category}"
+          end
+        end
+
+        Warning[:deprecated] = true
+        lambda(&:foo?)
+        # Received message 'warn.rb:23: warning: lambda without a literal block is deprecated; use the proc without lambda instead' with category=deprecated
+
+        eval('[1, 2, 3] => [x, *]') # we use eval, otherwise the warning was raised on PARSING stage, before any redefinitions
+        # Received message '(eval):1: warning: One-line pattern matching is experimental, and the behavior may change in future versions of Ruby!' with category=experimental
+        ```
+      class: Warning
+
+    - title: "Exception output order is changed (again)"
+      kind: change
+      importance: medium
+      summary: The "reverse" order of the backtrace (call stack printed starting from the outermost layer, and the innermost is at the bottom), which was introduced in 2.5 as "experimental" and tweaked to be active only for `STDERR` on 2.6, has now reverted to the old (pre-2.5) behavior.
+      reason: |
+        "From the outer to the inner" order is the default for some other languages (like Python), but it seems most of the rubyists never got used to it.
+      feature: 8661
+      code: |
+        ```ruby
+        def inner
+          raise 'test'
+        end
+
+        def outer
+          inner
+        end
+
+        outer
+        ```
+        This prints on Ruby 2.5-2.7:
+        ```
+        Traceback (most recent call last):
+          2: from test.rb:9:in `<main>'
+          1: from test.rb:6:in `outer'
+        test.rb:2:in `inner': test (RuntimeError)
+        ```
+        But on Ruby < 2.5, and on 3.0 again:
+        ```
+        test.rb:2:in `inner': test (RuntimeError)
+          from test.rb:6:in `outer'
+          from test.rb:9:in `<main>'
+        ```
+      notes: |
+        While redesigning the backtrace, command-line option `--backtrace-limit=<number-of-entries>` was introduced, so, you can run the example above this way to partially suppress backtrace:
+
+        ```
+        $ ruby --backtrace-limit=0 test.rb
+        test.rb:2:in `inner': test (RuntimeError)
+          ... 2 levels...
+        ```
+      class: (ruby)
+
+    - title: "Interpolated String literals are no longer frozen when `#frozen-string-literal: true` is used"
+      kind: change
+      importance: low
+      category: Strings and symbols
+      reason: The idea of `frozen-string-literal` pragma is to avoid unnecessary allocations, when the same `"string"` repeated in the code called multiple times; but if the string is constructed dynamically with interpolation, there would be no point (it is hard to predict that allocations would be avoided, as the string can be different each time; it also breaks the "intuitive" feeling that the string is dynamic.
+      feature: 17104
+      docs: https://docs.ruby-lang.org/en/3.0.0/syntax/comments_rdoc.html#label-frozen_string_literal+Directive
+      code: |
+        ```ruby
+        # frozen-string-literal: true
+
+        def render(title, body)
+          result = "## #{title}"
+          result << "\n"
+          result << body
+        end
+
+        puts render('The Title', 'The body')
+        # Ruby 2.7: in `render': can't modify frozen String (FrozenError)
+        # Ruby 3.0:
+        #   ## The Title
+        #   The body
+        ```
+      class: String
+
+    - title: "Methods on subclasses of `String` always returning `String` instances"
+      kind: change
+      importance: low
+      category: Strings and symbols
+      summary: On custom classes inherited from `String`, some methods previously were returning an instance of this class, and others returned `String`. Now they all do the latter.
+      reason: |
+        While one might argue that `MyCoolString.new(" foo ").strip` should return an instance of `MyCoolString`, it actually creates a significant problem: String internals don't know how to construct a new instance of the child class (imagine it has a constructor like `StringFromFile.new(content, filename:)`), and in Ruby versions before 3.0 they didn't actually construct child classes with the constructor. It was a source of all kinds of subtle bugs.
+
+        **Affected methods:** `#*`, `#capitalize`, `#center`, `#chomp`, `#chop`, `#delete`, `#delete_prefix`, `#delete_suffix`, `#downcase`, `#dump`, `#each_char`, `#each_grapheme_cluster`, `#each_line`, `#gsub`, `#ljust`, `#lstrip`, `#partition`, `#reverse`, `#rjust`, `#rpartition`, `#rstrip`, `#scrub`, `#slice!`, `#slice` / `#[]`, `#split`, `#squeeze`, `#strip`, `#sub`, `#succ` / `#next`, `#swapcase`, `#tr`, `#tr_s`, `#upcase`
+      bug: 10845
+      code: |
+        ```ruby
+        class Buffer < String
+          attr_reader :capacity
+
+          def initialize(content, capacity:)
+            super(content)
+            @capacity = capacity
+          end
+
+          # some impl.
+        end
+
+        stripped = Buffer.new(' foo ', capacity: 100).strip
+        stripped.class
+        # Ruby 2.7: Buffer
+        # Ruby 3.0: String
+        stripped.capacity
+        # Ruby 2.7: nil -- one might ask "why it haven't been copied from parent???"
+        # Ruby 3.0: NoMethodError (undefined method `capacity' for "foo":String)
+        ```
+      notes: A similar change was implemented for Array.
+      class: String
+
+    - title: "`Symbol#name` added"
+      kind: addition
+      importance: low
+      category: Strings and symbols
+      summary: The method returns a frozen string with the symbol's representation.
+      reason: |
+        Producing non-frozen strings from `Symbol#to_s` might lead to a memory/performance overhead, for example, when large data structures are serialized. It was discussed that `#to_s` should be changed to just return a frozen String, but it would create a backward compatibility problem in code looking like this:
+
+        ```ruby
+        # Not the best, but existing in the wild way of constructing strings from data containing symbols
+        {some: 'data'}.map { |k, v| k.to_s << ': ' << v }.join(', ')
+        # If k.to_s returns a frozen string, it would throw FrozenError (can't modify frozen String: "some")
+        ```
+
+        As a compromise, this new method was added.
+      feature: 16150
+      docs: https://docs.ruby-lang.org/en/3.0.0/Symbol.html#method-i-name
+      class: Symbol
+
+
+
+
