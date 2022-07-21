@@ -3,6 +3,7 @@
     - title: Values in Hash literals and keyword arguments can be omitted
       kind: addition
       highlight: true
+      importance: high
       summary: |
         In hash literals and method calls, `x:` is now a shortcut for `x: x`—take hash value from the context, with the same name as a key.
       feature: 14579
@@ -69,6 +70,7 @@
 
     - title: Inside "endless" method definitions, method calls without parentheses are allowed
       kind: addition
+      importance: low
       summary: |
         `def some_method = other_method "bar"` is now allowed, previously it was required to write `other_method("bar")` in the method's body.
       reason: When endless methods were introduced in 3.0, this syntax (named "command syntax" internally) wasn't allowed; but it was not a deliberate decision, and rather a side-effect of a parser complexity. During development of 3.1, the workaround was found to make code more consistent and refactoring from multi-line to single-line methods easier.
@@ -82,9 +84,10 @@
         ```
       class: Method
 
-    - title: Anonymous block argument
+    - title: Anonymous block arguments added
       kind: addition
       highlight: true
+      importance: medium
       summary: If method uses its block argument only to pass to another method, it can be marked by anonymous `&`.
       reason: |
         The initial proposal for the feature is 6-year old and focused on avoiding intermediate blocks object allocation on block forwarding. It was considered redundant when block forwarding was optimized in Ruby 2.5; but then the core team decided it is actually a nice and unambiguous shortcut for methods that just pass the block further. As bloc argument is frequently called just `block`, the absence of the name doesn't affect readability.
@@ -133,6 +136,7 @@
     - title: Expressions and non-local variables allowed in pin operator `^`
       kind: addition
       highlight: true
+      importance: low
       category: Pattern-matching
       summary: On the initial implementation of the pattern matching, the only patterns that could be used in matching expression were constants, literals and pinned local variables. Since 3.1, any kind of statement can be a pattern, with extended functionality of the `^` pin operator.
       feature: [17411, 17724]
@@ -163,6 +167,7 @@
     - title: Parentheses can be omitted in one-line pattern matching
       kind: addition
       category: Pattern-matching
+      importance: medium
       feature: 16182
       docs: https://docs.ruby-lang.org/en/3.1/syntax/pattern_matching_rdoc.html#label-Patterns
       code: |
@@ -193,6 +198,7 @@
 
     - title: Multiple assignment evaluation order change
       kind: change
+      importance: low
       summary: L-values in multiple assignment are evaluated before r-values
       reason: |
         Multiple assignment evaluation order was unexpected: the right part of the expression was calculated before the left. While rarely crucial, this still could cause subtle bugs.
@@ -231,6 +237,7 @@
     - title: "`Class#subclasses` added"
       category: Class and Module
       kind: addition
+      importance: medium
       summary: Returns all _direct_ subclasses of the class.
       feature: 18273
       docs: https://docs.ruby-lang.org/en/3.1/Class.html#method-i-subclasses
@@ -268,23 +275,26 @@
         Almost till the final release, method `#descendants` (returning all descendants, not only direct one) was also going to be introduced. But then Matz had a [change of mind](https://bugs.ruby-lang.org/issues/14394#note-33) and decided `#subclasses` covers most of the reasonable needs, and `#descendants` introduces too much complexity. It still might be considered for the future versions.
       class: Class
 
-    - title: Refinement class
+    - title: "`Refinement` class added"
       category: Class and Module
       kind: addition
-      summary: Add `Refinement` class representing `self` inside a `refine` statement.
+      importance: medium
+      summary: New class representing `self` inside a `refine` statement.
       bug: 17429
       docs: https://docs.ruby-lang.org/en/3.1/Refinement.html
       class: Refinement
 
     - title: Deprecate `include`/`extend` inside refinements
       kind: deprecation
+      importance: low
       reason: The `include`/`extend` in refinements never worked (refined class wouldn't have the modules included) but were allowed.
       bug: 17429
       class: Module
 
-    - title: Refinement#import_methods
+    - title: "`Refinement#import_methods` added"
       category: Class and Module
       kind: addition
+      importance: medium
       summary: New method similar in functionality to `Module#include` for use inside `refine` statements.
       reason: The `include`/`extend` in refinements never worked (refined class wouldn't have the modules included) but were allowed. This method was introduced as compromise replacement, limited in functionality (see **Notes**).
       bug: 17429
@@ -338,6 +348,7 @@
     - title: "`Module#prepend` always moves to front"
       category: Class and Module
       kind: change
+      importance: medium
       summary: Now, when module is prepended to the class, it always becomes first in the ancestor chain; even if it was already included.
       reason: It was noted that `prepend` is a mechanism of method redefinition that is relied upon to be performed strictly _before_ the module of the class affected; but if the class had the module already ws included (especially in complex systems and indirectly), this becomes unreliable.
       bug: 17423
@@ -387,6 +398,7 @@
     - title: "`Module#private`, `#public`, `#protected`, and `#module_function` return their arguments"
       category: Class and Module
       kind: change
+      importance: medium
       summary: |
         For each of these methods, the following behavior is used:
 
@@ -431,6 +443,7 @@
 
     - title: "`Method`/`UnboundMethod`: `#public?`, `#private?`, `#protected?`"
       kind: addition
+      importance: low
       summary: New methods that allow for checking the visibility of a method.
       reason: For exploration, documenting, and metaprogramming (like, defining a wrapper method that would have the same visibility as original method).
       feature: 11689
@@ -468,6 +481,7 @@
 
     - title: "`Kernel#load` can load code into a specified module"
       kind: addition
+      importance: medium
       summary: |
         Instead of always using a new anonymous module for `Kernel#load` if the second argument is not `false`/`nil``, use the given module if a module is provided.
 
@@ -560,6 +574,7 @@
 
     - title: "`Integer.try_convert` added"
       kind: addition
+      importance: low
       summary: Safe explicit conversion method which calls `#to_int` if the argument has it, and returns `nil` otherwise.
       reason: The similar methods exist on a few other core classes, like String and Array. They are useful for implementing polymorphic methods (like `#[]` behaving differently for integer, string and range), as a safe way of type-checking/type-coercion.
       feature: 15211
@@ -597,6 +612,7 @@
 
     - title: "`String#unpack` and `#unpack1` gain `offset:` argument"
       summary: The new argument allows to unpack data starting from the specified offset.
+      importance: low
       kind: addition
       reason: |
         Handy for working with binary data of complicated shape, flow like: read one byte, decide what type/size is next data, then read this number of bytes _starting after the type tag_, then read next chunk _starting after the data already read_. Before the parameter introduction, this type of processing required string slicing, which is cumbersome and might have been inefficient.
@@ -628,6 +644,7 @@
 
     - title: "`MatchData#match` and `#match_length` added"
       kind: addition
+      importance: medium
       summary: |
         `#match(idx)` is the same as `MatchData#[]`, but only works for singular numeric or symbolic index. `#match_length(idx)` returns the length of the `idx`s match.
       reason: It was argued that in the performance-critical code sometimes there is a need to just know the length of the substring matched, and doing it via `match[index].length` leads to creation of an intermediate string soon to be dropped, while `#match_length` doesn't do that. `#match` is added mostly for completeness (it would be weird to not have it when `#match_length` method exists).
@@ -670,8 +687,9 @@
         ```
       class: MatchData
 
-    - title: "`Time.new`, `.at` and `now` gain `in:` argument"
+    - title: "`Time.new`, `.at` and `.now` gain `in:` argument"
       kind: addition
+      importance: medium
       highlight: true
       summary: The new parameter is accepting offsets or timezone objects, and (finally!) allows to easily construct time in desired timezone.
       feature: 17485
@@ -715,6 +733,7 @@
 
     - title: "`Time#strftime` supports `-00:00` offset"
       kind: addition
+      importance: low
       summary: |
         `%-z` allows to format "negative zero" offset for Time.
       reason: |
@@ -738,6 +757,7 @@
 
     - title: "`Struct#new` warns when passing keywords to a non-keyword-initialized struct"
       kind: addition
+      importance: low
       reason: After keyword-inited stucts have been introduced, it is easy to forget the actual protocol of some struct, and try to initialized it with keyword arguments—which, if the struct is not keyword-inited, would raise no error, but produce an unexpected result.
       feature: 16806
       code: |
@@ -769,6 +789,7 @@
 
     - title: "`StructClass#keyword_init?` added"
       kind: addition
+      importance: low
       summary: New method allows to check whether the `Struct`-produced class is initialized by keywords.
       reason: Helpful for meta-programming and generic processing of data, like serializing/deserializing.
       feature: 18008
@@ -792,6 +813,7 @@
 
     - title: "`Enumerable#compact` and `Enumerator::Lazy#compact` added"
       kind: addition
+      importance: medium
       reason: |
         `#compact` was previously defined only on a particular classes like `Array` and `Hash`, but being a synonym for `reject(&:nil?)`, it is reasonable to have in generic `Enumerable`. Especially useful in lazy enumeration to produce still-lazy sequences with `compact` applied.
       feature: 17312
@@ -823,6 +845,7 @@
 
     - title: "`Enumerable#tally` now accepts an optional hash to update"
       kind: addition
+      importance: medium
       summary: The hash is updated with the new `tally` numbers, allowing to accumulate stats from several enumerables efficiently and succinctly.
       feature: 17744
       docs: https://docs.ruby-lang.org/en/3.1/Enumerable.html#method-i-tally
@@ -857,6 +880,7 @@
 
     - title: "`Enumerable#each_cons` and `#each_slice` return a receiver"
       kind: addition
+      importance: medium
       reason: Before 3.1, both methods returned `nil`, making it inconvenient to use in chained computations. This was also inconsistent with `#each`, which returns a receiver.
       github-pull-request: 1509
       docs:
@@ -882,6 +906,7 @@
 
     - title: "`Array#intersect?` added"
       kind: addition
+      importance: high
       summary: Method checks if two arrays intersect, e.g. have at least one item in common.
       reason: Checking intersection is typical operation (is "current user roles intersect with admin roles?"), but without this method, it typically required to write `!(ary1 & ary2).empty?`, which is cumbersome and produces an intermediate array.
       feature: 15198
@@ -905,6 +930,7 @@
 
     - title: "`Thread::Queue#initialize` can accept initial values"
       kind: addition
+      importance: low
       reason: Despite the fact that `Thread::Queue` is a specialized collection for safe data exchange in a multi-threaded context, it is considered to frequently have some initial set of values to process (like list of workers), new method call-sequence simplifies that.
       feature: 17327
       docs: https://docs.ruby-lang.org/en/3.1/Thread/Queue.html#method-c-new
@@ -934,6 +960,7 @@
     - title: "`IO::Buffer` added"
       kind: addition
       highlight: true
+      importance: medium
       summary: A new class representing low-level I/O abstraction. Internally, uses OS mechanisms to directly use memory-mapping of files and internal Ruby String representation.
       reason: The feature was requested for implementing non-blocking `#io_read` and `#io_write` for `FiberScheduler`, but probably will find other usages once matured.
       feature: 18020
@@ -944,6 +971,7 @@
 
     - title: "`File.dirname` gains optional `level` param to go up the directory tree"
       kind: addition
+      importance: medium
       feature: 12194
       docs: https://docs.ruby-lang.org/en/3.1/File.html#method-c-dirname
       code: |
@@ -968,6 +996,8 @@
       class: File
 
     - title: "`Marshal.load` accepts a `freeze:` option"
+      kind: addition
+      importance: low
       summary: If `freeze:true` is passed, `#load` will return a deeply frozen object graph.
       reason: Besides obvious immutability merits, constructing frozen graph may lead to lower memory consumption, because frozen strings are deduplicated.
       feature: 18148
@@ -1003,6 +1033,7 @@
 
     - title: "`Thread#native_thread_id` added"
       kind: addition
+      importance: low
       category: Concurrency
       summary: Returns OS-specific thread ID.
       reason: The method might be useful for low-level debugging, and for system calls requiring "real" thread id.
@@ -1026,6 +1057,7 @@
 
     - title: "`Process._fork` added"
       kind: addition
+      importance: low
       category: Concurrency
       summary: The new method is the process forking implementation which is guaranteed to be used by  `Process.fork`, `Kernel#fork`, and `IO.popen`.
       reason: The method is meant to be overridable by libraries that need to add some hook/additional processing (like freeing DB connections) on forking. Previously, this was inconvenient due to the fact that `Process.fork` and `Kernel#fork` were different methods, not relying on each other.
@@ -1063,6 +1095,7 @@
 
     - title: "Fiber Scheduler: New hooks"
       kind: addition
+      importance: low
       highlight: true
       category: Concurrency
       summary: Continuing work on non-blocking Fiber and Fiber Scheduler concept [introduced in 3.0](3.0.html#non-blocking-fiber-and-scheduler), new optional hooks were introduced to support non-blocking DNS resolution (`#address_resolve`), IO (`#io_read`/`#io_write`)
@@ -1081,6 +1114,7 @@
 
     - title: "Ractors can access module instance variables"
       kind: change
+      importance: medium
       category: Concurrency
       summary: |
         Ractors, introduced in 3.0 to solve a problem of GVM (global virtual matchine lock), have a strict notion of "shareability". Non-main Ractors can't directly access any names defined outside of them except for classes/modules and frozen constants. One improvement was made to this model: allow to access module-wide instance variables.
@@ -1112,6 +1146,7 @@
 
     - title: "`Thread::Backtrace.limit` added"
       kind: addition
+      importance: low
       category: Internals
       summary: Returns value set by `--backtrace-limit` command-line option (which is used in Exception#full_message to format backtrace).
       reason: The ability to read the parameter might be useful for custom error formatters.
@@ -1163,6 +1198,7 @@
 
     - title: "`GC.measure_total_time`, `.measure_total_time=`, `.total_time`, `.stat` added"
       kind: addition
+      importance: medium
       category: Internals
       summary: New methods added to measure time spent in garbage collection.
       feature: 10917
@@ -1199,6 +1235,7 @@
 
     - title: "`TracePoint.allow_reentry` added"
       kind: addition
+      importance: low
       category: Internals
       summary: Normally, during handling of `TracePoint` event, all other active `TracePoint` handlers wouldn't be called. Since Ruby 3.1, the handler can wrap some of its code into `TracePoint.allow_reentry { ... }` and inside that block, other handlers (including the current one) _will_ be invoked.
       reason: The issue was raised by author of the [byebug](https://github.com/deivid-rodriguez/byebug) debugger. Debugging sessions are implemented with `TracePoint` API, and when the program is inside a debugging session, it is actually inside one of the handlers. Thus, all other libraries relying on `TracePoint` API would not work during the session—and one of them is [zeitwerk](https://github.com/fxn/zeitwerk), Rails code reloader.
@@ -1252,6 +1289,7 @@
 
     - title: "`$LOAD_PATH.resolve_feature_path` no longer raises on unfound name"
       kind: change
+      importance: low
       category: Internals
       summary: Since being added [in 2.6](2.6.html#rubyvmresolve_feature_path) (then named `RubyVM.resolve_feature_path`), the method have raised when the requested name wouldn't be found. It was fixed in 3.1 to just return `nil`.
       reason: It was argued that raising `LoadError` makes method looks like it has a side effect instead of just being a query method, and makes it inconvenient to use.
@@ -1268,6 +1306,7 @@
   Language Changes:
     - title: "Keyword arguments are now fully separated from positional arguments"
       kind: change
+      importance: high
       highlight: true
       summary: |
         The separation which started in 2.7 with deprecations, is now fully finished. It means keyword arguments are not a "syntax sugar" on top of hashes, and they never converted into each other implicitly:
@@ -1299,6 +1338,7 @@
 
     - title: Procs with "rest" arguments and keywords change of autosplatting behavior
       kind: change
+      importance: medium
       summary: Just a leftover from the separation of keyword arguments.
       feature: 16166
       code: |
@@ -1318,6 +1358,7 @@
 
     - title: "Arguments forwarding (`...`) supports leading arguments"
       kind: addition
+      importance: medium
       reason: Argument forwarding, when introduced in 2.7, was able to forward only all-or-nothing. It turned out to be not enough. One of the important usages for leading arguments are cases like `method_missing` and other DSL-defined methods that need to pass to the nested method `:some_symbol` + all of the original arguments.
       feature: 16378
       docs: https://docs.ruby-lang.org/en/master/syntax/methods_rdoc.html#label-Argument+forwarding
@@ -1370,6 +1411,7 @@
 
     - title: Single-statement methods can be defined without `end`
       kind: addition
+      importance: high
       summary: Methods of exactly one statement now can be defined with syntax `def method() = statement`.
       reason: |
         Ruby's `end`s (unlike C-like languages' `{}`) are generally OK for Rubyists, but make small utility methods look more heavy than they should. For small utility methods with body containing just one short statement like:
@@ -1463,12 +1505,14 @@
 
     - title: "Pattern matching no longer experimental"
       kind: promotion
+      importance: low
       category: Pattern Matching
       summary: Pattern matching, introduced in 2.7, is no longer experimental.
       feature: 17260
 
     - title: One-line pattern matching with `=>`
       kind: addition
+      importance: medium
       category: Pattern Matching
       reason: |
         This is an interesting one. Two facts were discussed between 2.7 and 3.0: the fact that in most of the other languages one-line pattern matching has a different order (`<pattern> <operator> <data>`) than introduced in Ruby 2.7 (`<data> in <pattern>`); and the idea of "rightward assignment operator" `=>` for more natural chaining. And then, at some point, ideas converged most fruitfully.
@@ -1514,8 +1558,9 @@
 
     - title: Pattern matching with `in` as a `true`/`false` check
       kind: addition
+      importance: medium
       category: Pattern Matching
-      summary: After the change described above, `in` was reintroduced to return `true`/`false` (whether the pattern matches) instead of raising `NoMatchingPatternError`.
+      summary: After the change for one-line pattern matching with `=>`, `in` was reintroduced to return `true`/`false` (whether the pattern matches) instead of raising `NoMatchingPatternError`.
       reason: The new meaning allows pattern matching to be more tightly integrated with other constructs in the control flow, like iteration and regular conditions.
       feature: 17371
       docs: https://docs.ruby-lang.org/en/3.0.0/syntax/pattern_matching_rdoc.html
@@ -1546,6 +1591,7 @@
 
     - title: Find patterns
       kind: addition
+      importance: medium
       category: Pattern Matching
       summary: Pattern matching now supports "find patterns", with several splats in them.
       feature: 16828
@@ -1605,8 +1651,9 @@
         ```
       notes: Feature is marked as EXPERIMENTAL, will warn so on an attempt of usage, and may change in the future.
 
-    - title: "Parent classes overwriting class variables raises an error"
+    - title: Parent classes overwriting class variables raises an error
       kind: change
+      importance: medium
       summary: When class `@@variable` is overwritten by the parent of the class, or by the module included, a `RuntimeError` is raised. In addition, top-level class variable access also raises an error.
       reason: Class variables, with their "non-intuitive" access rules, are frequently considered a bad practice. They still can be very useful for tracking something across class hierarchy. But the fact that the entire hierarchy shares the same variable may lead to hard-to-debug bugs, so it was fixed to raise on the usage that seems unintentional.
       bug: 14541
@@ -1665,6 +1712,7 @@
 
     - title: "`$SAFE` and `$KCODE` no longer have any meaning"
       kind: removal
+      importance: low
       summary: |
         * `$SAFE`, the global setting related to tainting, was deprecated in 2.7.
         * `$KCODE` also no longer holds any special behavior
@@ -1672,11 +1720,13 @@
 
     - title: "`yield` inside a singleton class block now raises an error"
       kind: removal
+      importance: low
       summary: This was deprecated in 2.7, and now results in a `SyntaxError` if present
       feature: 15575
 
     - title: Assigning to a numbered block parameter results in a `SyntaxError`
       kind: change
+      importance: medium
       summary: Numbered block parameters were introduced in 2.7, and back then raised a warning when you assigned a value to them. Assignment now results in a `SyntaxError`.
       code: |
         ```ruby
