@@ -63,7 +63,7 @@
         ```
 
         Therefore, if you use value omission in method calls, **always use parenthesis**!
-      followups: |
+      followup: |
         It is [still discussed](https://bugs.ruby-lang.org/issues/18396#note-4) whether Ruby should handle the problem above (unexpected continuation) more gracefully. It is possible that the behavior would change in a migration-friendly manner: first, the warning in 3.2 about `key:` at the end of the line; then, in 3.3, next line would be considered a separate statement.
       class: [Hash, Method]
 
@@ -1508,7 +1508,7 @@
           some_statement => obj.attr # meaning to call `obj.attr=`
           some_statement => $y # ...though maybe don't use global variables :)
           ```
-      followups: |
+      followup: |
         * As of 3.1, the feature is no longer experimental;
         * In 3.1, the parenthesis around the pattern became optional
 
@@ -1540,7 +1540,7 @@
         ```
       notes: |
         * Feature is marked as EXPERIMENTAL, will warn so on an attempt of usage, and may change in the future.
-      followups: |
+      followup: |
         * As of 3.1, the feature is no longer experimental;
         * In 3.1, the parenthesis around the pattern became optional
 
