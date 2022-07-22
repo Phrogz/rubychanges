@@ -10,7 +10,9 @@ def run!
 	if options.breaking_only
 		changes = changes.filter{ |c| c.kind=='removal' || c.kind=='change' }
 	end
-
+	if options.language_only
+		changes = changes.filter{ |c| c.section=='Language Changes' }
+	end
 
 	create_report(changes, known_releases, options)
 end
@@ -36,7 +38,7 @@ end
 
 def fetch_options(known_releases)
 	require 'optparse'
-	Struct.new(:from, :to, :group_by_class, :breaking_only, :level, :verbose, :file).new.tap do |opts|
+	Struct.new(:from, :to, :group_by_class, :breaking_only, :language_only, :level, :verbose, :file).new.tap do |opts|
 		opts.level = 1
 		opts.group_by_class = false
 		opts.from = BASE_RELEASE
@@ -63,13 +65,18 @@ def fetch_options(known_releases)
 			op.on('-b', '--breaking-only', 'Show only changes that modify the way the language works, potentially affecting existing scripts') do
 				opts.breaking_only = true
 			end
+			op.on('-l', '--language-only', 'Show only changes to the language (not specific classes/methods)') do
+				opts.language_only = true
+			end
 			op.on('-i', '--important', 'Show only the most important changes') do
 				opts.level = 3
 			end
 			op.on('-r', '--relevant', 'Show only major/medium changes (ignore esoteric changes)') do
 				opts.level = 2
 			end
-			op.on('-o changes.html', '--output changes.html', "Set the output filename (default: #{opts.file})")
+			op.on('-o changes.html', '--output changes.html', "Set the output filename (default: #{opts.file})") do |f|
+				opts.file = f
+			end
 		end.parse!
 		puts opts if opts.verbose
 
@@ -185,6 +192,7 @@ class Change
 
 	attr_accessor :title, :summary, :kind, :code, :notes, :reason, :followup, :highlight, :section, :category
 	attr_reader :disussion, :docs, :classes, :release, :level
+	alias_method :followups=, :followup=
 	def initialize(hash, extras={})
 		@discussion = []
 		@docs = []

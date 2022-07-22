@@ -64,7 +64,7 @@
         ```
 
         Therefore, if you use value omission in method calls, **always use parenthesis**!
-      followup: |
+      followups: |
         It is [still discussed](https://bugs.ruby-lang.org/issues/18396#note-4) whether Ruby should handle the problem above (unexpected continuation) more gracefully. It is possible that the behavior would change in a migration-friendly manner: first, the warning in 3.2 about `key:` at the end of the line; then, in 3.3, next line would be considered a separate statement.
       class: [Hash, Method]
 
@@ -1500,7 +1500,7 @@
       notes: |
         * The initial proposal seems to be a good-natured April Fool's joke, then everybody suddenly liked it, and, with a slight change of syntax, it was accepted;
         * Feature is marked as EXPERIMENTAL, but it does NOT produce a warning, it is deliberate, see discussion in [Misc #17399](https://bugs.ruby-lang.org/issues/17399).
-      followup: In Ruby 3.1, the requirement to wrap method calls in parenthesis inside endless method body [was removed](3.1.html#inside-endless-method-definitions-method-calls-without-parenthesis-are-allowed).
+      followups: In Ruby 3.1, the requirement to wrap method calls in parenthesis inside endless method body [was removed](3.1.html#inside-endless-method-definitions-method-calls-without-parenthesis-are-allowed).
       class: Method
 
     - title: "Pattern matching no longer experimental"
@@ -1552,7 +1552,7 @@
           some_statement => obj.attr # meaning to call `obj.attr=`
           some_statement => $y # ...though maybe don't use global variables :)
           ```
-      followup: |
+      followups: |
         * As of 3.1, the feature is no longer experimental;
         * In 3.1, the parenthesis around the pattern became optional
 
@@ -1585,7 +1585,7 @@
         ```
       notes: |
         * Feature is marked as EXPERIMENTAL, will warn so on an attempt of usage, and may change in the future.
-      followup: |
+      followups: |
         * As of 3.1, the feature is no longer experimental;
         * In 3.1, the parenthesis around the pattern became optional
 
@@ -1924,7 +1924,7 @@
         # Ruby 2.7: NoMethodError (undefined method `each2' for 1..8:Range) -- even though Range includes Enumerable
         # Ruby 3.0: [[1, 2], [3, 4], [5, 6], [7, 8]]
         ```
-      followup: In Ruby 3.1, `#prepend` behavior was adjusted further to be more predictable.
+      followups: In Ruby 3.1, `#prepend` behavior was adjusted further to be more predictable.
       class: Module
 
     - title: "Improved method visibility declaration"
@@ -1995,7 +1995,7 @@
           #       ^ syntax error, unexpected `alias'
         end
         ```
-      followup: In Ruby 3.1, `#private`, `#protected`, `#public`, and `#module_function` return their arguments for better macros chainability.
+      followups: In Ruby 3.1, `#private`, `#protected`, `#public`, and `#module_function` return their arguments for better macros chainability.
       class: Module
 
     - title: "`Warning#warn` gains `category:` argument."
@@ -2103,7 +2103,7 @@
         ```
       class: String
 
-    - title: "Methods on subclasses of `String` always returning `String` instances"
+    - title: Methods on subclasses of `String` always return `String` instances
       kind: change
       importance: low
       category: Strings and symbols
@@ -2156,6 +2156,524 @@
       docs: https://docs.ruby-lang.org/en/3.0.0/Symbol.html#method-i-name
       class: Symbol
 
+    - title: Methods on subclasses of `Array` always return `Array` instances
+      kind: change
+      importance: low
+      category: Collections
+      summary: |
+        On custom classes inherited from `Array`, some methods previously were returning an instance of this class, and others returned `Array`. Now they all do the latter.
 
+        * **Affected methods:** `#*`, `#drop`, `#drop_while`, `#flatten`, `#slice!`, `#slice` / `#[]`, `#take`, `#take_while`, `#uniq`
+      reason: See reason frr similar change to `String` from this release.
+      bug: 6087
+      code: |
+        ```ruby
+        class Nodes < Array
+          attr_reader :parent
+          def initialize(nodes, parent)
+            super(nodes)
+            @parent = parent
+          end
 
+          # some impl.
+        end
+
+        uniq = Nodes.new(['<tr>Name</tr>', '<tr>Position</tr>', '<tr>Name</tr>'], 'table').uniq
+        uniq.class
+        # Ruby 2.7: Nodes
+        # Ruby 3.0: Array
+        uniq.parent
+        # Ruby 2.7: nil -- one might ask "why it haven't been copied from parent???"
+        # Ruby 3.0: NoMethodError (undefined method `uniq' for ["<tr>Name</tr>", "<tr>Position</tr>"]:Array)
+        ```
+      class: Array
+
+    - title: "`Array#[]` and `#slice` accept `Enumerator::ArithmeticSequence`"
+      kind: addition
+      importance: medium
+      category: Collections
+      summary: |
+        `Enumerator::ArithmeticSequence` was introduced in 2.6 as an concept representing "sequence from `b` to `e` with step `s`". Since 3.0, `Array#[]` and `Array#slice` accept arithmetic sequence as a slicing argument.
+      feature: 16812
+      docs: https://docs.ruby-lang.org/en/3.0.0/Array.html#method-i-5B-5D
+      code: |
+        ```ruby
+        text_data = ['---', 'Jane', '---', 'John', '---', 'Yatsuke', '---']
+        text_data[(1..) % 2] # each second element
+        # => ["Jane", "John", "Yatsuke"]
+
+        # Note that unlike slicing with Range, slicing with ArithmeticSequence might raise RangeError:
+        text_data[0..100]
+        # => ["---", "Jane", "---", "John", "---", "Yatsuke", "---"]
+        text_data[(0..100) % 2]
+        # RangeError (((0..100).%(2)) out of range)
+        ```
+      notes: |
+        Don't forget to put `()` around range: without them, `0..100 % 2` is actually `(0)..(100 % 2)`, e.g. `0..0`.
+      class: Array
+
+    - title: "`Hash#except` added"
+      kind: addition
+      importance: medium
+      category: Collections
+      reason: |
+        `Hash#slice` ("only selected set of keys") was added in Ruby 2.5, but `Hash#except` was missing at this point. Added for completeness, and because it has lot of pragmatic usages.
+      feature: 15822
+      docs:
+        - https://docs.ruby-lang.org/en/3.0.0/Hash.html#method-i-except
+        - https://docs.ruby-lang.org/en/3.0.0/ENV.html#method-c-except
+      code: |
+        ```ruby
+        h = {a: 1, b: 2}
+        h.except(:b)
+        # => {:a=>1}
+        h.except(:c)        # unknown key is not an error
+        # => {:a=>1, :b=>2}
+        ```
+      notes: Unlike ActiveSupport, there's no `Hash#except!` (like there is no `#slice!`)
+      class: Hash
+
+    - title: "`Hash#transform_keys` accepts Hash map"
+      kind: addition
+      importance: medium
+      category: Collections
+      summary: "`Hash#transform_keys(from: to)` allows to rename keys in a DRY way."
+      feature: 16274
+      docs: https://docs.ruby-lang.org/en/3.0.0/Hash.html#method-i-transform_keys
+      code: |
+        ```ruby
+        h = {name: 'Ruby', years: 25}
+        h.transform_keys(name: :title, years: :age)
+        # => {:title=>"Ruby", :age=>25}
+        h.transform_keys(name: :title, site: :url)
+        # => {:title=>"Ruby", :years=>25} -- not mentioned keys are copied as is, unknown keys ignored
+        h.transform_keys(years: :name, name: :title)
+        # => {:title=>"Ruby", :name=>25} -- note that the first rename wouldn't replace the :name key, because
+        #                                   first all renames are deduced, and then applied
+        h.transform_keys(name: :lang_name) { |k| :"meta_#{k}" }
+        # => {:lang_name=>"Ruby", :meta_years=>25} -- block, if passed, is used to process keys the hash doesn't mention
+
+        h.transform_keys!(name: :title, years: :age) # bang version works, too
+        h
+        # => {:title=>"Ruby", :age=>25}
+        ```
+      class: Hash
+
+    - title: "`Hash#each` consistently yields a 2-element array to lambdas"
+      kind: addition
+      importance: low
+      category: Collections
+      summary: Just fixes an inconsistency introduced by optimization many versions ago.
+      bug: 12706
+      code: |
+        ```ruby
+        {a: 1}.each(&->(pair) { puts "pair=#{pair}" })
+        # 2.7 and 3.0: pair=[:a, 1] -- so, it is "yield 2 items as one argument"
+        {a: 1}.each(&->(pair, redundant) { puts "pair=#{pair}, redudnant=#{redundant}" })
+        # 2.7: pair=a, redudnant=1 -- arguments accidentally behave like for regular proc (auto-unpacking)
+        # 3.0: ArgumentError (wrong number of arguments (given 1, expected 2)) -- no unexpected auto-unpacking
+        ```
+      class: Hash
+
+    - title: "`Symbol#to_proc` identifies as lambda"
+      kind: change
+      importance: low
+      category: Procs/lambdas
+      reason: It was noted that the result of `&:something` behaves like a lambda, but its introspection methods are misleadingly reported it as a regular proc. While no big offense, it can be inconvenient when learning, and produce subtle bugs in complicated metaprogramming.
+      feature: 16260
+      code: |
+        ```ruby
+        def test_it(&block)
+          p [block.lambda?, block.parameters]
+        end
+
+        # Regular proc
+        test_it { |x| x.size }      # => [false, [[:opt, :x]]]
+        # Regular lambda
+        test_it(&->(x) { x.size })  # => [true, [[:req, :x]]]
+        # Symbol proc
+        test_it(&:size)
+        # Ruby 2.7: [false, [[:rest]]]
+        # Ruby 3.0: [true, [[:req], [:rest]]]
+        ```
+
+        The second one is more true, because it behaves like lambda: doesn't auto-unpack parameters, and
+        requires the first one:
+
+        ```ruby
+        Warning[:deprecated] = true
+        proc { |x, y| x + y }.call([1, 2])    # => 3, parameters unpacked
+        proc { |x| x.inspect }.call           # => "nil", no error, parameter is optional
+        lambda { |x, y| x + y }.call([1, 2])  # ArgumentError (wrong number of arguments (given 1, expected 2))
+        lambda { |x| x.inspect }.call         # ArgumentError (wrong number of arguments (given 0, expected 1))
+        :+.to_proc.call([1, 2])               # ArgumentError (wrong number of arguments (given 0, expected 1))
+        :inspect.to_proc.call                 # ArgumentError (no receiver given)
+        ```
+
+        Note that the last two errors was raised even on Ruby 2.7, so the behavior is not changed, just introspection made consistent.
+      class: Proc
+
+    - title: "`Kernel#lambda` warns if called without a literal block"
+      kind: change
+      importance: low
+      category: Procs/lambdas
+      reason: One might expect that `lambda(&other_block)` will change block's "lambdiness". It is not true, and it was decided that this behavior shouldn't change. Instead, to avoid errors, this code now warns.
+      feature: 15973
+      code: |
+        ```ruby
+        block = proc { |x| p x }
+        processed = lambda(&block)
+        # On 3.0: warning: lambda without a literal block is deprecated; use the proc without lambda instead
+        processed.lambda? # => false
+        processed.call    # => "nil", it is really still not a lambda
+        ```
+      class: Kernel
+
+    - title: "`Proc#==` and `#eql?` fixed for procs from the same block"
+      kind: change
+      importance: low
+      category: Procs/lambdas
+      summary: The method will return true for separate Proc instances if the procs were created from the same block.
+      reason: Lazy Proc allocation optimization (not creating `Proc` object while just propagating `&block` further) introduced an inconvenience for some DSL libraries when what are "logically" two references to the same proc, would become two unrelated objects, which could lead to subtle bugs.
+      feature: 14267
+      docs: https://docs.ruby-lang.org/en/3.0.0/Proc.html#method-i-3D-3D
+      code: |
+        ```ruby
+        class SomeDSL
+          attr_reader :before_block, :after_block
+
+          def before(&block)
+            @before_block = block
+          end
+
+          def after(&block)
+            @after_block = block
+          end
+
+          def before_and_after(&block)
+            before(&block)
+            after(&block)
+          end
+
+          def before_and_after_are_same?
+            @before_block == @after_block
+          end
+        end
+
+        dsl = SomeDSL.new
+        dsl.before_and_after { 'some code' }
+        dsl.before_block.object_id == dsl.after_block.object_id
+        # => true on Ruby 2.4: they were converted to Proc object in #before_and_after, and then this
+        #    object was propagated to #before/#after
+        # => false on Ruby 2.5-3.0: block was propagated without converting to object, and converts to
+        #    two different objects in #before/#after while storing in variables
+        p dsl.before_and_after_are_same?
+        # => true on Ruby 2.4, because it is the same object
+        # => false on Ruby 2.5-2.7
+        # => true on 3.0: the objects ARE different, but == implemented the way that they are equal if
+        #    they are produced from exactly the same block
+        ```
+      class: Proc
+
+    - title: "`Random::DEFAULT` changed to Random"
+      kind: change
+      importance: low
+      summary: |
+        `Random::DEFAULT` was an instance of the `Random` class, used by `Random.rand`/`Kernel.rand`. The object was removed, and now `Random::DEFAULT` is just an alias for `Random` class itself (it has class-level methods same as instance-level methods), and `Random.rand` creates a new random generator implicitly _per ractor_, on the first call in that ractor.
+
+      reason: With the introduction of the Ractors, global mutable objects can't be used, and `Random::DEFAULT` was such object (its state have changed with each `#rand` call); so now the default random generator is ractor-local, and is not exposed as a constant (it is decided that it would be too confusing to have a constant with the value different in each ractor).
+      feature: 17322
+      docs: https://docs.ruby-lang.org/en/3.0.0/Random.html
+      code: |
+        ```ruby
+        Warning[:deprecated] = true
+        Random::DEFAULT
+        # Ruby 2.7: => #<Random:0x005587d09fba20>
+        # Ruby 3.0:
+        #   warning: constant Random::DEFAULT is deprecated
+        #   => Random -- just the same class
+
+        Random.seed
+        # Ruby 2.7: NoMethodError: undefined method `seed' for Random:Class
+        # Ruby 3.0: => 77406376310392739943146667089721213130
+
+        # Seed is delegated to (now internal) per-Ractor random object, which is always the same in the same ractor
+        10.times.map { Random.seed }.uniq
+        # => [77406376310392739943146667089721213130]
+
+        # It is different in another ractor
+        Ractor.new { p Random.seed }
+        # => 95097031741178961937025250800360539515
+        ```
+      notes: |
+        See Ractors change and [Ractor](https://docs.ruby-lang.org/en/3.0.0/Ractor.html) class docs for deeper understanding of ractors data sharing model.
+      class: Random
+
+    - title: "`Dir.glob` and `Dir.[]` results now sorted"
+      kind: change
+      importance: medium
+      summary: By default the results are sorted, which can be turned off with `sorted:false`
+      reason: |
+        `Dir.glob` historically returns the results in the same order the underlying OS API does it (which is undefined on Linux). While it can be argued as "natural" (do what the OS does), it is inconvenient for most of the cases; and most of other languages and tools switched to sorting in the last years.
+      feature: 8709
+      docs: https://docs.ruby-lang.org/en/3.0.0/Dir.html#method-c-glob
+      notes: |
+        `Dir.glob('pattern', sort: false)` allows to return results in old (system) order; this might be useful when testing some OS behavior.
+      class: Dir
+
+    - title: "Ractors"
+      kind: addition
+      importance: high
+      category: Concurrency
+      summary: |
+        A long-anticipated concurrency improvement landed in Ruby 3.0. **Ractors** (at some point known as _Guilds_) are fully-isolated (without sharing GVL on CRuby) alternative to threads. To achieve thread-safety without global locking, ractors, in general, can't access each other's (or main program/main ractor) data. To share data with each other, ractors rely on message passing/receiving mechanism, aka actor model (hence the name). The feature was in design and implementation for a long time, so we'll not try to discuss it here in details or link to some "main" discussion, just provide a simple example and links for further investigation.
+      code: |
+        The simplistic example of ractors in action (classic "server-client" ping-pong):
+
+        ```ruby
+        server = Ractor.new do
+          puts "Server starts: #{self.inspect}"
+          puts "Server sends: ping"
+          Ractor.yield 'ping'                       # The server doesn't know the receiver and sends to whoever interested
+          received = Ractor.receive                 # The server doesn't know the sender and receives from whoever sent
+          puts "Server received: #{received}"
+        end
+
+        client = Ractor.new(server) do |srv|        # The server ractor is passed to client, and available as srv
+          puts "Client starts: #{self.inspect}"
+          received = srv.take                       # The Client takes a message specifically from the server
+          puts "Client received from " \
+              "#{srv.inspect}: #{received}"
+          puts "Client sends to " \
+              "#{srv.inspect}: pong"
+          srv.send 'pong'                           # The client sends a message specifically to the server
+        end
+
+        [client, server].each(&:take)               # Wait till they both finish
+        ```
+
+        This will output:
+
+        ```
+        Server starts: #<Ractor:#2 test.rb:1 running>
+        Server sends: ping
+        Client starts: #<Ractor:#3 test.rb:8 running>
+        Client received from #<Ractor:#2 rac.rb:1 blocking>: ping
+        Client sends to #<Ractor:#2 rac.rb:1 blocking>: pong
+        Server received: pong
+        ```
+      docs:
+        - https://docs.ruby-lang.org/en/3.0.0/Ractor.html
+        - https://docs.ruby-lang.org/en/3.0.0/doc/ractor_md.html
+      followups: In Ruby 3.1, ractor's concept of what's allowed to share was adjusted to include shareable class/module instance variables. Ractors are still considered experimental though.
+      class: Ractor
+
+    - title: "Non-blocking `Fiber` and scheduler"
+      kind: addition
+      importance: medium
+      category: Concurrency
+      feature: 16786
+      summary: |
+        The improvement of inter-thread concurrency for IO-heavy tasks is achieved with **non-blocking Fibers**. When several long I/O operations should be performed, they can be put in separate _non-blocking_ Fibers, and instead of blocking each other while waiting, they would be transferring the control to the fiber that can proceed, while others wait.
+
+        **New and updated methods:**
+
+        * `Fiber`: [Fiber.set_scheduler](https://docs.ruby-lang.org/en/3.0.0/Fiber.html#method-c-set_scheduler), [Fiber.scheduler](https://docs.ruby-lang.org/en/3.0.0/Fiber.html#method-c-scheduler), [Fiber.new](https://docs.ruby-lang.org/en/3.0.0/Fiber.html#method-c-new) `(blocking: true/false)` parameter, [Fiber#blocking?](https://docs.ruby-lang.org/en/3.0.0/Fiber.html#method-i-blocking-3F), [Fiber.blocking?](https://docs.ruby-lang.org/en/3.0.0/Fiber.html#method-c-blocking-3F)
+        * Methods invoking scheduler: `Kernel.sleep`, `IO#wait_readable`, `IO#wait_writable`, `IO#read`, `IO#write` and other related methods (e.g. `IO#puts`, `IO#gets`), `Thread#join`, `ConditionVariable#wait`, `Queue#pop`, `SizedQueue#push`;
+        * `IO#nonblock?` now defaults to `true`;
+        * `Mutex` belongs to `Fiber` rather than `Thread` (can be unlocked from other fiber than the one that locked it).
+      docs:
+        - https://docs.ruby-lang.org/en/master/Fiber.html#class-Fiber-label-Non-blocking+Fibers
+        - https://docs.ruby-lang.org/en/master/Fiber/SchedulerInterface.html
+        - https://docs.ruby-lang.org/en/3.0.0/doc/fiber_md.html
+      code: |
+        ```ruby
+        require 'net/http'
+
+        start = Time.now
+
+        Thread.new do # in this thread, we'll have non-blocking fibers
+          Fiber.set_scheduler Scheduler.new # see Notes about the scheduler implementation
+
+          %w[2.6 2.7 3.0].each do |version|
+            Fiber.schedule do # Runs block of code in a separate Fiber
+              t = Time.now
+              # Instead of blocking while the response will be ready, the Fiber will invoke scheduler
+              # to add itself to the list of waiting fibers and transfer control to other fibers
+              Net::HTTP.get('rubyreferences.github.io', "/rubychanges/#{version}.html")
+              puts '%s: finished in %.3f' % [version, Time.now - t]
+            end
+          end
+        end.join # At the END of the thread code, Scheduler will be called to dispatch all waiting fibers
+                # in a non-blocking manner
+
+        puts 'Total: finished in %.3f' % (Time.now - start)
+        # Prints:
+        #  2.6: finished in 0.139
+        #  2.7: finished in 0.141
+        #  3.0: finished in 0.143
+        #  Total: finished in 0.146
+        ```
+
+        Note that "total" is lower than sum of all fibers execution time: on `HTTP.get`, instead of blocking the whole thread, they were transferring control while waiting, and all three waits are performed in parallel.
+      notes: |
+        The feature is somewhat unprecedented for Ruby in the fact that **no default Scheduler implementation** is provided. Implementing the Scheduler in a reliable way (probably using some additional non-blocking event loop library) is completely up to the user. Considering that the feature is implemented by [Samuel Williams](https://github.com/ioquatix) of the [Async](https://github.com/socketry/async) fame, the Async gem [utilizes](https://github.com/socketry/async/blob/master/lib/async/scheduler.rb) the new feature since the day of 3.0 release.
+      followups: In Ruby 3.1, more scheduler hooks were added to make more core methods support asynchronous execution.
+      class: Fiber
+
+    - title: "`Thread.ignore_deadlock` accessor added"
+      kind: addition
+      importance: low
+      category: Concurrency
+      summary: Allows disabling the default deadlock detection, allowing the use of signal handlers to break deadlock.
+      reason: The change helps with rare condition when Ruby's internal deadlock detector is fooled by external signals.
+      bug: 13768
+      docs:
+        - https://docs.ruby-lang.org/en/3.0.0/Thread.html#method-c-ignore_deadlock-3D
+        - https://docs.ruby-lang.org/en/3.0.0/Thread.html#method-c-ignore_deadlock
+      code: |
+        ```ruby
+        queue1 = Queue.new
+        queue2 = Queue.new
+
+        trap(:SIGCHLD) { queue1.push 'from SIGCHLD to queue1' }
+
+        Thread.start { Process.spawn("/bin/sleep 1") }
+        Thread.start { queue2.push("via Thread to queue2: #{queue1.pop}") }
+
+        Thread.ignore_deadlock = true # <== New feature
+
+        # Here the message would be received when the childprocess will finish, send message to queue1,
+        # which then will be caught in the thread and sent to queue2.
+        puts queue2.pop
+        # Prints: "via Thread to queue2: from SIGCHLD to queue1"
+        #
+        # But Without the marked line, it will be printed instead:
+        #  in `pop': No live threads left. Deadlock? (fatal)
+        #  ... description of sleeping threads ...
+        ```
+      class: Thread
+
+    - title: "`Fiber#backtrace` and `#backtrace_locations` added"
+      kind: addition
+      importance: medium
+      category: Concurrency
+      summary: Like similar methods of the `Thread`, provides a locations of the currently executed Fiber code.
+      feature: 16815
+      docs:
+        - https://docs.ruby-lang.org/en/3.0.0/Fiber.html#method-i-backtrace
+        - https://docs.ruby-lang.org/en/3.0.0/Fiber.html#method-i-backtrace_locations
+      code: |
+        ```ruby
+        f = Fiber.new { Fiber.yield }
+        # When fiber is not yet running, the backtrace is empty
+        f.backtrace
+        # => []
+
+        # When fiber was resumed, and then yielded control, you can ask about its location
+        f.resume
+        f.backtrace
+        # => ["test.rb:1:in `yield'", "fbr.rb:1:in `block in <main>'"]
+
+        f.backtrace_locations
+        # => ["fbr.rb:1:in `yield'", "fbr.rb:1:in `block in <main>'"]
+        # Despite looking the same, backtrace_locations are actually instances of Thread::Backtrace::Location
+        loc = f.backtrace_locations.first
+        loc.label   # => "yield"
+        loc.path    # => "test.rb"
+        loc.line    # => 1
+
+        # Like Thread.backtrace_locations, the method accepts arguments:
+        f.backtrace_locations(1) # start from 1
+        # => ["fbr.rb:1:in `block in <main>'"]
+        f.backtrace_locations(0, 1) # start from 0, take 1
+        # => ["test.rb:1:in `yield'"]
+        f.backtrace_locations(0...1) # ranges are acceptable, too
+        # => ["test.rb:1:in `yield'"]
+
+        f.resume
+        # When the fiber is finished, there is no location
+        f.backtrace_locations
+        # => nil
+        ```
+      class: Fiber
+
+    - title: "`Fiber#transfer` limitations reduced"
+      kind: change
+      importance: medium
+      category: Concurrency
+      summary: |
+        `#transfer` is the method that allows fiber to pass control to other fiber directly, allowing several fibers to control each other, creating arbitrary directed graph of control. Two styles of passing control (`Fiber.yield` / `Fiber#resume` vs `Fiber#transfer` to and from fiber) can't be freely mixed: the way in which fiber lost control should be the same it received the control back. In 2.7, this was implemented by a strict rule: once the fiber received control via `#transfer`, it can _never_ return back to `.yield`/`#resume` style. But in 3.0, better grained set of limitations was designed, so when the Fiber passed control via `#transfer` and then received it back (via `#transfer` in other fiber), it again can `.yield` and be `#resume`d.
+
+      reason: The new design makes the "entry point" fiber of `#transfer` graph accessible from outside the graph.
+      bug: 17221
+      docs: https://docs.ruby-lang.org/en/3.0.0/Fiber.html#method-i-transfer
+      code: |
+        ```ruby
+        require 'fiber'
+
+        manager = nil # For local var to be visible inside worker block
+
+        # This fiber would be started with transfer
+        # It can't yield, and can't be resumed
+        worker = Fiber.new { |work|
+          puts "Worker: starts"
+          puts "Worker: Performed #{work.inspect}, transferring back"
+          # Fiber.yield     # this would raise FiberError: attempt to yield on a not resumed fiber
+          # manager.resume  # this would raise FiberError: attempt to resume a resumed fiber (double resume)
+          manager.transfer(work.capitalize)
+        }
+
+        # This fiber would be started with resume
+        # It can yield or transfer, and can be transferred
+        # back or resumed
+        manager = Fiber.new {
+          puts "Manager: starts"
+          puts "Manager: transferring 'something' to worker"
+          result = worker.transfer('something')
+          puts "Manager: worker returned #{result.inspect}"
+          # worker.resume    # this would raise FiberError: attempt to resume a transferring fiber
+          Fiber.yield        # this is OK __since 3.0__, the fiber transferred back and from, now it can yield
+          puts "Manager: finished"
+        }
+
+        puts "Starting the manager"
+        manager.resume
+        puts "Resuming the manager"
+        # manager.transfer  # this would raise FiberError: attempt to transfer to a yielding fiber
+        manager.resume # This is possible __since 3.0__
+        ```
+
+        This prints:
+
+        ```
+        Starting the manager
+        Manager: starts
+        Manager: transferring 'something' to worker
+        Worker: starts
+        Worker: Performed "something", transferring back
+        Manager: worker returned "Something"
+        Resuming the manager
+        Manager: finished
+        ```
+
+        Before Ruby 3.0, `manager` Fiber (once it ran the loop of `transfer`s with `worker`), had no way to return control generically, to whatever other Fiber wants to run.
+      notes: |
+        The full list of the new rules are:
+
+        * Can't `transfer` to the fiber resumed (e.g. at currently running due to receiving control via `resume`, and not `transfer`)
+        * Can't `transfer` to the fiber yielding (e.g. the one that run `Fiber.yield` and is waiting to be `resume`d)
+        * Can't `resume` the fiber transferred (e.g. once the fiber `transfer` to some other fiber, it can obtain the control back only via `transfer`)
+        * Can't `Fiber.yield` from the fiber that was never resumed (e.g. that was started due to `transfer`)
+      class: Fiber
+
+    - title: "`GC.auto_compact` accessor added"
+      kind: addition
+      importance: low
+      summary: Setter/getter for the option to run `GC.compact` (introduced in Ruby 2.7) on each major garbage collection. `false` by default.
+      feature: 17176
+      docs:
+        - https://docs.ruby-lang.org/en/3.0.0/GC.html#method-c-auto_compact
+        - https://docs.ruby-lang.org/en/3.0.0/GC.html#method-c-auto_compact-3D
+      notes: It is noticed by feature authors that currently compaction adds a significant overhead to the garbage collection, so should be tested if that's what you want.
 
