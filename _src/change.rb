@@ -78,12 +78,6 @@ class Change
 		end
 	end
 
-    def metadata=(v)
-        v.scan(/(\w+):(.+?)(?=, |\})/) do |k, v|
-            self.send( :"#{k}=", v)
-        end
-    end
-
     def affects=(prose)
         (@affects ||= []) << prose
     end
@@ -103,7 +97,9 @@ class Change
     end
 
     def unique_id
-        [*@path, @title].join(' ').downcase.gsub(/[^\w.]+/, '')
+        require 'digest'
+        [*@path, @title].join(' ')
+        .then{ Digest::MD5.hexdigest(_1)[0...16] }
     end
 
     def md2html(md)
