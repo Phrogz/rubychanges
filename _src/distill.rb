@@ -133,8 +133,8 @@ def create_report(changes, known_releases, options)
 			<table><caption>
 				<span id="changecount"></span>
 				<select id="changefilter">
-					<option value="breakingonly">Potentially-Breaking</option>
 					<option value="highlights">Highlighted</option>
+					<option value="breakingonly">Potentially-Breaking</option>
 					<option value="medium">Non-Esoteric</option>
 					<option value="" selected></option>
 				</select>
@@ -221,7 +221,7 @@ def create_report(changes, known_releases, options)
 								return true;
 						}
 					})
-					.sort( (a,b) => (a.level==b.level) ? (a.scope < b.scope ? -1 : a.scope > b.scope ? 1 : 0) : b.level-a.level )
+					.sort( ([id1,a],[id2,b]) => (a.level==b.level) ? (a.scope < b.scope ? -1 : a.scope > b.scope ? 1 : 0) : b.level-a.level )
 					.map( ([id, c]) => {
 						const node = el.appendChild(document.createElement('p'));
 						node.innerHTML = c.title;
