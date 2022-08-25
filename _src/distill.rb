@@ -111,23 +111,46 @@ def create_report(changes, known_releases, options)
 			<head>
 				<meta charset="utf-8"><title>Changes to Ruby</title>
 				<style>
-					body { background:white; font-family:Tahoma, Calibri, 'Trebuchet MS' }
+					body { background:#eee; font-family:Tahoma, Calibri, 'Trebuchet MS' }
 					td { vertical-align:top; color:#333 }
 					code { color:#369; font-size:1.2em }
 
-					.addition::before, .removal::before, .change::before, .promotion::before, .deprecation::before { font-family:monospace; vertical-align:middle; line-height:1em; display:inline-block; padding-right:0.1em; font-size:1.6em }
-					.addition::before { content:'⊕'; color:#060 }
-					.promotion::before { content:'✪'; color:#0c0 }
-					.deprecation::before { content:'⎊'; color:#900 }
-					.removal::before { content:'⊗'; color:#c00 }
-					.change::before { content:'⊛'; color:orange }
+					* { box-sizing:border-box; margin:0; padding:0 }
+
+					p.addition::before, p.removal::before, p.change::before, p.promotion::before, p.deprecation::before { font-family:monospace; vertical-align:middle; line-height:1em; display:inline-block; padding-right:0.1em; font-size:1.6em }
+					p.addition::before { content:'⊕'; color:#060 }
+					p.promotion::before { content:'✪'; color:#0c0 }
+					p.deprecation::before { content:'⎊'; color:#900 }
+					p.removal::before { content:'⊗'; color:#c00 }
+					p.change::before { content:'⊛'; color:orange }
 
 					table { margin:1em auto; border-spacing:1em }
 					caption { color:black; font-weight:bold; padding-bottom:0.6em; white-space:nowrap }
-					th { border-bottom:1px solid #ccc }
+					th { border-bottom:1px solid #999 }
 					p { margin:0; margin-bottom:0.5em; font-size:0.85em }
-					th.release { vertical-align:middle; text-align:center; border-bottom:none; border-right:1px solid #ccc }
-					th.release span { -ms-writing-mode:tb-rl; -webkit-writing-mode:vertical-rl; writing-mode:vertical-rl; transform:rotate(180deg)	}
+					th.release { vertical-align:middle; text-align:center; border-bottom:none; border-right:1px solid #999 }
+					th.release span { -ms-writing-mode:tb-rl; -webkit-writing-mode:vertical-rl; writing-mode:vertical-rl; transform:rotate(180deg) }
+
+					#detailWrapper { box-sizing:border-box; display:none; position:fixed; background:#fff; margin:1em; padding:1em; border-radius:1em; top:2em; left:2em; right:2em; bottom:2em; box-shadow:black 0 0 30px; overflow:hidden }
+					#detailBody { overflow:auto; position:absolute; top:3em; left:1em; right:1em; bottom:0.5em }
+					#release, #kind, #closeDetails { display:inline-block; position:absolute; top:0; left:0; font-weight:bold; background:#999; color:#ccc; padding:0.5em; line-height:1em; border:1px solid black }
+					#release, #kind { border-bottom-right-radius:1em }
+					#release { width:3em; text-align:center; border-radius:1em 0 1em 0 }
+					#kind { left:2em; padding-left:1.5em; z-index:-1; padding-right:1em }
+					#closeDetails { border-radius:0 1em 0 1em; left:auto; right:0; width:2.5em; text-align:center; background:#900; color:#fcc; z-index:2; cursor:pointer }
+					#kind.addition, #kind.promotion { background:#060; color:#cfc }
+					#kind.removal, #kind.deprecation { background:#600; color:#f99 }
+					#kind.change { background:#960; color:#ffc }
+					#section, #level { display:none }
+					#title { font-weight:bold; text-align:center; position:absolute; top:0; left:0; right:0; font-size:125% }
+					#bg::before, #code::before, #reason::before, #docs::before { font-weight:bold; display:block }
+					#code, #bg, #reason, #docs, #brief { margin-bottom:1em }
+					#code::before { content:'Code' }
+					#bg::before { content:'Discussion' }
+					#docs::before { content:'Documentation' }
+					#reason::before { content:'Reason' }
+					#code pre { margin:0.6em }
+					ul { padding-inline-start:1em }
 				</style>
 			</head><body>
 			<table><caption>
@@ -157,6 +180,7 @@ def create_report(changes, known_releases, options)
 			f << "</tr>\n"
 		end
 		f << "</tbody></table>"
+		f << "<section id='detailWrapper'><div id='closeDetails'>x</div><div id='detailBody'></div></section>"
 		f << <<~ENDSCRIPT
 		<script>
 			const tmpEl = document.createElement('div');
@@ -212,7 +236,7 @@ def create_report(changes, known_releases, options)
 					.filter( ([_,c]) => {
 						switch(changefilter.value) {
 							case 'breakingonly':
-								return c.kind=='removal' || c.kind=='change';
+								return c.kind=='removal' || c.kind=='change' || c.kind=='deprecation';
 							case 'highlights':
 								return c.level==3;
 							case 'medium':
@@ -227,6 +251,7 @@ def create_report(changes, known_releases, options)
 						node.innerHTML = c.title;
 						if (c.brief) node.title = t(c.brief);
 						if (c.kind) node.className = c.kind;
+						node.dataset.changeId = id;
 					})
 					.length;
 			}
@@ -235,6 +260,44 @@ def create_report(changes, known_releases, options)
 				tmpEl.innerHTML = html;
 				return tmpEl.innerText;
 			}
+
+			document.querySelector('tbody').addEventListener('click', showChange, false);
+
+			const globalContent = ['release', 'kind', 'title'];
+			function showChange(evt) {
+				let node = evt.srcElement;
+				while (node && (!node.dataset || !node.dataset.changeId)) node = node.parentNode;
+				if (!node) return; // console.warn("tbody click did not lead to changeId", evt.srcElement);
+				if (!node.dataset.changeId) return console.warn("Ended on a node without a changeId", node, evt.srcElement);
+				const details = $changes[node.dataset.changeId];
+				if (!details) return console.warn(`Cannot find details for ${node.dataset.changeId}`);
+
+				detailWrapper.style.display = 'block';
+
+				Object.entries(details).forEach( ([id,data]) => {
+					let bit = detailWrapper.querySelector(`#${id}`);
+					if (!bit) {
+						const owner = globalContent.includes(id) ? detailWrapper : detailBody;
+						bit = owner.appendChild(document.createElement('div'));
+						bit.id = id;
+					}
+					if (id=='bg') {
+						const list = bit.appendChild(document.createElement('ul'));
+						data.forEach( bg => {
+							list.appendChild(document.createElement('li'))
+								.innerHTML = `<a href="${bg.url}">${bg.label}</a>`;
+						});
+					} else {
+						bit.innerHTML = id=='release' ? data.toFixed(1) : data;
+						if (id=='kind') bit.className = data;
+					}
+				});
+			}
+
+			closeDetails.addEventListener('click', evt => {
+				detailWrapper.style.display = '';
+			}, false);
+
 		</script></body></html>
 		ENDSCRIPT
 	end

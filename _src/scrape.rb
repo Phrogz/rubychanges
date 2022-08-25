@@ -17,14 +17,15 @@ def pull_changes_from_files
 			in_comment = false
 			change = nil
 			last_method = nil
-			File.foreach(file) do |line|
+			File.foreach(file).with_index do |line,line_number|
+				linedebug = "#{file}##{line_number} | " if $DEBUG
 				line.chomp!
 				if in_comment
 					in_comment = false if line =~ /-->/
 				else
 					case line
-					when /^(#+) ([\w`].+)/
-						# [\w`] used to avoid summary sections including code block with commented line
+					when /^(#+) ([\w`"].+)/
+						# [\w`"] used to avoid summary sections including code block with commented line
 						level = $1.length
 						path = path[0...level]
 						path[level-1] = $2
@@ -32,14 +33,16 @@ def pull_changes_from_files
 						change.title = $2
 						change.path = path[0..-2]
 						last_method = nil
+						puts "#{linedebug}## CREATED issue #{$2.inspect}" if $DEBUG
 
 					when /\* \*\*(.+?):\*\*\s*(?!-$)(.*)/
 						method = :"#{$1.downcase}="
 						if change.respond_to?(method)
 							change.send(method, $2)
-							last_method = method
+							puts "#{linedebug}#{method}#{$2.inspect}" if $DEBUG
+							last_method = method unless Change::SINGLE_LINE_FIELDS.include?(method)
 						else
-							# warn "Skipping unhandled section named #{$1}"
+							warn "#{linedebug}Skipping unhandled section named #{$1}" if $DEBUG
 						end
 
 					when /^<!--.+-->/
@@ -51,10 +54,12 @@ def pull_changes_from_files
 					else
 						if last_method
 							change.send(last_method, line)
-						elsif change
-							change.summary = line unless line.empty?
+							puts "#{linedebug}#{last_method}#{line.inspect}" if $DEBUG
+						elsif change && !line.empty?
+							change.summary = line
+							puts "#{linedebug}summary=#{line.inspect}" if $DEBUG
 						else
-							# warn "Ignoring: #{line}"
+							# Ignoring line
 						end
 					end
 				end

@@ -33,6 +33,8 @@ class Change
 	attr_accessor :release, :title, :summary, :kind, :notes, :reason, :followup, :highlight, :section, :path, :affects, :scope
 	attr_reader :discussion, :classes, :level
 
+    SINGLE_LINE_FIELDS = %i{importance= kind=}
+
     alias_method :note=, :notes=
     alias_method :notice=, :notes=
     alias_method :"follow-up=", :followup=
@@ -74,7 +76,7 @@ class Change
 			when 'medium'; 2
 			when 'low'; 1
 			else
-				warn "Unrecognized importance level #{v}"
+				warn "Unrecognized importance level `#{v.inspect}`"
 		end
 	end
 
